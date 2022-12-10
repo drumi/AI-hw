@@ -19,7 +19,6 @@ public class TSP extends Application {
         stage.setTitle("TSP");
         stage.resizableProperty().setValue(Boolean.FALSE);
         stage.setScene(scene);
-        stage.show();
 
         TSPGenetic tsp = new TSPGenetic();
         tsp.simulate();
@@ -46,6 +45,7 @@ public class TSP extends Application {
             group.getChildren().add(line);
         }
 
+        stage.show();
     }
 
     public static void main(String[] args) {

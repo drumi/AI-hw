@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -13,10 +14,10 @@ public class TSPGenetic {
 
     private final int POPULATION_SIZE = 100;
     private final int ELITISM = 5;
-    private final int MUTATION_RATE_PERCENT = 5;
+    private final int MUTATION_RATE_PROMILS = 50;
     private final int ITERATIONS = 10_000;
 
-    private final Random RANDOM = new Random();
+    private final Random RANDOM = ThreadLocalRandom.current();
     private final int RANDOM_RANGE = 800;
 
     private final Scanner scanner = new Scanner(System.in);
@@ -46,17 +47,6 @@ public class TSPGenetic {
 
             points[i] = new Point(x, y);
         }
-
-//        points[0] = new Point(10, 10);
-//        points[1] = new Point(30, 30);
-//        points[2] = new Point(250, 520);
-//        points[3] = new Point(103, 200);
-//        points[4] = new Point(550, 410);
-//        points[5] = new Point(310, 140);
-//        points[6] = new Point(130, 10);
-//        points[7] = new Point(10, 130);
-//        points[8] = new Point(510, 720);
-//        points[9] = new Point(440, 350);
 
         // Calculating distances
         for (int i = 0; i < NumberOfPoints; i++) {
@@ -101,6 +91,10 @@ public class TSPGenetic {
                 int parent1 = RANDOM.nextInt(0, sum);
                 int parent2 = RANDOM.nextInt(0, sum);
 
+                // No need to self reproduce
+                while (parent2 == parent1)
+                    parent1 = RANDOM.nextInt(0, sum);
+
                 int index1 = Arrays.binarySearch(fitnesses, parent1);
                 int index2 = Arrays.binarySearch(fitnesses, parent2);
 
@@ -110,7 +104,7 @@ public class TSPGenetic {
                 if (index2 < 0)
                     index2 = -index2 - 1;
 
-                crossOverAndMutate(populationList.get(index1), populationList.get(index2), children);
+                crossOver(populationList.get(index1), populationList.get(index2), children);
             }
 
             if (k == ITERATIONS / 4) {
@@ -131,11 +125,29 @@ public class TSPGenetic {
                 elite.add(population.poll());
             }
 
+            children.forEach(
+                c -> mutationChance(c)
+            );
+
+            // Improvement?
+            var betterElite = new ArrayList<int[]>();
+            for (var e : elite) {
+                int[] mut = new int[e.length];
+
+                System.arraycopy(e, 0, mut, 0, mut.length);
+
+                mutate(mut);
+
+                if (fitness(mut) > fitness(e))
+                    betterElite.add(mut);
+                else
+                    betterElite.add(e);
+            }
+
             // Fixed length queue!
             population.clear();
             population.addAll(children);
-            population.addAll(elite);
-
+            population.addAll(betterElite);
             bestSoFar = population.peek();
         }
 
@@ -176,16 +188,44 @@ public class TSPGenetic {
         return acc;
     }
 
+    private void mutationChance(int[] solution) {
+            if (RANDOM.nextInt(0, 1001) < MUTATION_RATE_PROMILS) {
+                mutate(solution);
+            }
+    }
+
     private void mutate(int[] solution) {
+        mutate2(solution);
+    }
+
+    private void mutate1(int[] solution) {
         int r1 = RANDOM.nextInt(0, solution.length);
         int r2 = RANDOM.nextInt(0, solution.length);
 
-        var tmp = solution[r1];
-        solution[r1] = solution[r2];
-        solution[r2] = tmp;
+        swap(solution, r1, r2);
     }
 
-    private void crossOverAndMutate(int[] solution1, int[] solution2, List<int[]> listToAppend) {
+    private void mutate2(int[] solution) {
+        int r1 = RANDOM.nextInt(0, solution.length);
+        int r2 = RANDOM.nextInt(0, solution.length);
+
+        if (r1 > r2) {
+            var tmp = r1;
+            r1 = r2;
+            r2 = tmp;
+        }
+        for (int i = r1; i < r2 - i; i++) {
+            swap(solution, i, r2 - i);
+        }
+    }
+
+    private void swap(int[] arr, int idx1, int idx2) {
+        var tmp = arr[idx1];
+        arr[idx1] = arr[idx2];
+        arr[idx2] = tmp;
+    }
+
+    private void crossOver(int[] solution1, int[] solution2, List<int[]> listToAppend) {
         final int length = solution1.length;
 
         final int r1 = RANDOM.nextInt(0, length);
@@ -227,13 +267,6 @@ public class TSPGenetic {
 
         cross.apply(cache1, solution2, child1);
         cross.apply(cache2, solution1, child2);
-
-        // Mutate
-        if (RANDOM.nextInt(0, 101) < MUTATION_RATE_PERCENT)
-            mutate(child1);
-
-        if (RANDOM.nextInt(0, 101) < MUTATION_RATE_PERCENT)
-            mutate(child2);
 
         listToAppend.add(child1);
         listToAppend.add(child2);
